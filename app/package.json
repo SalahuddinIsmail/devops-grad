@@ -1,0 +1,14 @@
+{
+  "name": "devops-grad-app",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo 'No tests yet' && exit 0",
+    "lint": "echo 'No lint configured' && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

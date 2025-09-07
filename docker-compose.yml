@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    image: ghcr.io/SalahuddinIsmail/devops-grad-app:dev
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_ENV=dev
+    restart: unless-stopped

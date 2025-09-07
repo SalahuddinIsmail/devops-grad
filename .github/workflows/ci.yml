@@ -1,0 +1,27 @@
+name: CI
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ "feature/**", "issue-**" ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: |
+          cd app
+          npm ci || npm install
+      - name: Lint & Test
+        run: |
+          cd app
+          npm run lint
+          npm test
+      - name: Build Docker image
+        run: |
+          docker build -t dummy/local:latest .

@@ -1,0 +1,44 @@
+name: CD-VM
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push image
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }} .
+          docker push ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }}
+
+      - name: Copy compose & deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p ~/apps/devops-grad
+            cd ~/apps/devops-grad
+            cat > docker-compose.yml <<'YML'
+            version: "3"
+            services:
+              web:
+                image: ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }}
+                ports:
+                  - "80:8080"
+                environment:
+                  - APP_ENV=vm
+                restart: unless-stopped
+            YML
+            docker compose pull || true
+            docker compose up -d --force-recreate
