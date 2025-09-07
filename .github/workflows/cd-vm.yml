@@ -8,7 +8,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
+      - name: Lowercase owner for GHCR
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Log in to GHCR (runner)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -16,29 +19,39 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image
+        env:
+          IMAGE: ghcr.io/${{ env.OWNER_LC }}/devops-grad-app:${{ github.sha }}
         run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }} .
-          docker push ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
 
-      - name: Copy compose & deploy over SSH
+      - name: Deploy on VM via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # login on the VM (only needed if package is private)
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin || true
+
             mkdir -p ~/apps/devops-grad
             cd ~/apps/devops-grad
             cat > docker-compose.yml <<'YML'
             version: "3"
             services:
               web:
-                image: ghcr.io/${{ github.repository_owner }}/devops-grad-app:${{ github.sha }}
+                image: ghcr.io/${{ env.OWNER_LC }}/devops-grad-app:${{ github.sha }}
                 ports:
                   - "80:8080"
                 environment:
                   - APP_ENV=vm
                 restart: unless-stopped
             YML
-            docker compose pull || true
-            docker compose up -d --force-recreate
+            docker compose pull || docker-compose pull
+            docker compose up -d --force-recreate || docker-compose up -d --force-recreate
+
+            echo "---- HEALTHCHECK FROM INSIDE VM ----"
+            sleep 2
+            curl -i http://localhost:8080/healthz || true
+            echo "------------------------------------"
